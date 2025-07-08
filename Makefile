@@ -1,9 +1,9 @@
 fmt:
-	echo "Formatting lua/gitbrowse..."
+	echo "Formatting lua/deez..."
 	stylua lua/ --config-path=.stylua.toml
 
 lint:
-	echo "Linting lua/gitbrowse..."
+	echo "Linting lua/deez..."
 	luacheck lua/ --globals vim
 
 pr-ready: fmt lint

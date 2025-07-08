@@ -1,8 +1,6 @@
 local M = {}
 
-local default_opts = {
-    open_cmd = "xdg-open",
-}
+local o = {}
 
 ---@param filepath string
 ---@return string
@@ -33,6 +31,7 @@ local function ssh_to_https(git_link)
 end
 
 --- Open the git repository link in the default browser.
+--- REFACTOR: move to a "utils" package (with git/filepath stuff extracted and a link param)
 function M.open()
     local filepath = vim.fn.expand("%:p")
     local git_link = get_git_link(filepath)
@@ -44,21 +43,13 @@ function M.open()
 
     local openable_link = ssh_to_https(git_link)
     print(openable_link)
-    vim.fn.system({ default_opts.open_cmd, openable_link })
+
+    vim.ui.open(openable_link)
 end
 
 ---@param opts table?
 function M.setup(opts)
-    local sysname = vim.loop.os_uname().sysname
-    if sysname == "Windows_NT" then
-        default_opts.open_cmd = "start"
-    elseif sysname == "Darwin" then
-        default_opts.open_cmd = "open"
-    elseif sysname == "Linux" then
-        default_opts.open_cmd = "xdg-open"
-    end
-
-    default_opts = vim.tbl_deep_extend("force", default_opts, opts)
+    o = vim.tbl_deep_extend("force", o, opts)
 end
 
 return M
