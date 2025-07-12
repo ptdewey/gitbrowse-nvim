@@ -6,12 +6,7 @@ A collection of small utilities for Neovim
 
 With lazy.nvim:
 ```lua
-{
-    "ptdewey/deez-nvim",
-    config = function()
-        require("deez").setup({})
-    end
-}
+{ "ptdewey/deez-nvim" }
 ```
 
 ---
@@ -31,13 +26,7 @@ Open the link to *any* git repository from Neovim
 {
     "ptdewey/deez-nvim",
     config = function()
-        require("deez").setup({
-            load_all = true,
-
-            -- Or, loading only GitBrowse
-            load_all = false,
-            gitbrowse = true,
-        })
+        require("deez.gitbrowse").setup({})
 
         -- Keymap
         vim.keymap.set("n", "<leader>gb", function()
@@ -65,13 +54,7 @@ Switch to "alternate" files quickly. This is primarily targeting test files for 
 {
     "ptdewey/deez-nvim",
     config = function()
-        require("deez").setup({
-            load_all = true,
-
-            -- Or, loading only AltFile
-            load_all = false,
-            altfile = true,
-        })
+        require("deez.altfile").setup({})
 
         -- Keymap
         vim.keymap.set("n", "<leader>tf", function()
@@ -82,6 +65,21 @@ Switch to "alternate" files quickly. This is primarily targeting test files for 
         vim.api.nvim_create_user_command("AltFile", function()
             require("deez.altfile").open()
         end, { desc = "Switch to alternate file" })
+    end
+}
+```
+
+---
+
+## Wordcount
+```lua
+{
+    "ptdewey/deez-nvim",
+    config = function()
+        require("deez.wordcount").setup({
+            -- optional, deafults to "<leader>wc"
+            keymap = "<leader>wc"
+        })
     end
 }
 ```
