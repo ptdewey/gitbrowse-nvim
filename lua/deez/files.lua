@@ -9,7 +9,8 @@ local config = {
         open = { key = nil, opts = { desc = "Open Explorer", noremap = true } },
         toggle = { key = nil, opts = { desc = "Toggle Explorer", noremap = true } },
         close = { key = nil, opts = { desc = "Close Explorer", noremap = true } },
-    }
+    },
+    open_in_current_dir = false,
 }
 
 local state = {
@@ -156,8 +157,7 @@ local function on_enter()
     end
 end
 
--- Create a new file
--- FIX: creates multiple files, one in current dir (not desired), opens that one rather than the target
+--- Create a new file
 local function create_file()
     local filename = vim.fn.input("Enter filename: ")
     if filename == "" then
@@ -170,23 +170,13 @@ local function create_file()
     local stat = vim.loop.fs_stat(filepath)
     if stat then
         vim.notify("File already exists: " .. filename, vim.log.levels.WARN)
-        return
+        return filepath -- Still return the path to open it
     end
 
-    -- Create the file
-    local file = io.open(filepath, "w")
-    if file then
-        file:close()
-        vim.notify("Created file: " .. filename, vim.log.levels.INFO)
-        render() -- Refresh the display
-    else
-        vim.notify("Failed to create file: " .. filename, vim.log.levels.ERROR)
-    end
-
-    return filename
+    return filepath
 end
 
--- Create a new directory
+--- Create a new directory
 local function create_dir()
     local dirname = vim.fn.input("Enter directory name: ")
     if dirname == "" then
@@ -368,8 +358,32 @@ function M.open(opts)
         return
     end
 
+    -- Determine starting directory
     if opts and opts.args and opts.args ~= "" then
         state.cwd = opts.args
+    else
+        -- Check opts.open_in_current_dir first, then fall back to config
+        local use_current_dir = config.open_in_current_dir
+        if opts and opts.open_in_current_dir ~= nil then
+            use_current_dir = opts.open_in_current_dir
+        end
+
+        if use_current_dir == nil then
+            use_current_dir = config.open_in_current_dir
+        end
+
+        if use_current_dir then
+            -- Open in the directory of the current file
+            local current_file = vim.fn.expand("%:p")
+            if current_file ~= "" then
+                state.cwd = vim.fn.fnamemodify(current_file, ":h")
+            else
+                state.cwd = vim.loop.cwd()
+            end
+        else
+            -- Default to current working directory
+            state.cwd = vim.loop.cwd()
+        end
     end
 
     state.bufnr = vim.api.nvim_create_buf(false, true)
@@ -397,9 +411,9 @@ function M.open(opts)
     -- File/directory creation keymaps (netrw style)
     vim.api.nvim_buf_set_keymap(state.bufnr, "n", "%", "", {
         callback = function()
-            local filename = create_file()
-            if filename then
-                vim.cmd("edit " .. filename)
+            local filepath = create_file()
+            if filepath then
+                vim.cmd("edit " .. vim.fn.fnameescape(filepath))
             end
         end,
         noremap = true,
@@ -458,11 +472,12 @@ function M.open(opts)
     render()
 end
 
-function M.toggle()
+---@param opts table?
+function M.toggle(opts)
     if state.bufnr and vim.api.nvim_buf_is_valid(state.bufnr) then
         vim.api.nvim_buf_delete(state.bufnr, {})
     else
-        M.open()
+        M.open(opts)
     end
 end
 
