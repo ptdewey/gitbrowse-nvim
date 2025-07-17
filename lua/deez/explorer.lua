@@ -5,6 +5,11 @@ local config = {
         dir = vim.api.nvim_get_hl(0, { name = "Directory" }),
         file = vim.api.nvim_get_hl(0, { name = "Normal" }),
     },
+    keys = {
+        open = { key = nil, opts = { desc = "Open Explorer", noremap = true } },
+        toggle = { key = nil, opts = { desc = "Toggle Explorer", noremap = true } },
+        close = { key = nil, opts = { desc = "Close Explorer", noremap = true } },
+    }
 }
 
 local state = {
@@ -152,6 +157,7 @@ local function on_enter()
 end
 
 -- Create a new file
+-- FIX: creates multiple files, one in current dir (not desired), opens that one rather than the target
 local function create_file()
     local filename = vim.fn.input("Enter filename: ")
     if filename == "" then
@@ -238,7 +244,7 @@ local function delete_entry()
         -- default = "n",
     }, function(input)
         if not input then
-            return -- User cancelled (ESC)
+            return -- User canceled (ESC)
         end
 
         input = input:lower():gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
@@ -258,7 +264,7 @@ local function delete_entry()
                 vim.notify("Failed to delete: " .. name, vim.log.levels.ERROR)
             end
         elseif input == "n" or input == "no" then
-            -- Do nothing, user cancelled
+            -- Do nothing, user canceled
             return
         else
             vim.notify("Please enter y/yes or n/no", vim.log.levels.WARN)
@@ -337,6 +343,8 @@ local function reset_state()
     state.show_hidden = false
 end
 
+-- FIX: this should open in the directory of the currently open file rather than the cwd (or make an opt)
+--
 -- Open the file explorer
 ---@param opts table?
 function M.open(opts)
@@ -365,10 +373,10 @@ function M.open(opts)
     end
 
     state.bufnr = vim.api.nvim_create_buf(false, true)
-    state.ns_id = vim.api.nvim_create_namespace("files")
+    state.ns_id = vim.api.nvim_create_namespace("DeezFiles")
 
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = state.bufnr })
-    vim.bo[state.bufnr].filetype = "files"
+    vim.bo[state.bufnr].filetype = "DeezFiles"
 
     -- Set up buffer cleanup autocmd
     vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
@@ -377,9 +385,14 @@ function M.open(opts)
         once = true,
     })
 
-    vim.api.nvim_buf_set_keymap(state.bufnr, "n", "<CR>", "", {
-        callback = on_enter,
+    vim.api.nvim_create_autocmd("BufEnter", {
+        buffer = state.bufnr,
+        callback = function()
+            vim.opt_local.spell = false
+        end
     })
+
+    vim.api.nvim_buf_set_keymap(state.bufnr, "n", "<CR>", "", { callback = on_enter, })
 
     -- File/directory creation keymaps (netrw style)
     vim.api.nvim_buf_set_keymap(state.bufnr, "n", "%", "", {
@@ -445,9 +458,35 @@ function M.open(opts)
     render()
 end
 
+function M.toggle()
+    if state.bufnr and vim.api.nvim_buf_is_valid(state.bufnr) then
+        vim.api.nvim_buf_delete(state.bufnr, {})
+    else
+        M.open()
+    end
+end
+
+function M.close()
+    if state.bufnr and vim.api.nvim_buf_is_valid(state.bufnr) then
+        vim.api.nvim_buf_delete(state.bufnr, {})
+    end
+end
+
 ---@param opts table?
 function M.setup(opts)
     config = vim.tbl_deep_extend("force", config, opts)
+
+    if config.keys.open.key then
+        vim.keymap.set("n", config.keys.open.key, M.open, config.keys.open.opts)
+    end
+
+    if config.keys.toggle.key then
+        vim.keymap.set("n", config.keys.toggle.key, M.toggle, config.keys.toggle.opts)
+    end
+
+    if config.keys.close.key then
+        vim.keymap.set("n", config.keys.close.key, M.close, config.keys.close.opts)
+    end
 
     vim.api.nvim_create_user_command("ExOpen", M.open, { nargs = "?" })
 end
