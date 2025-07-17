@@ -445,7 +445,11 @@ function M.open(opts)
     render()
 end
 
-vim.api.nvim_create_user_command("ExOpen", M.open, { nargs = "?" })
-vim.keymap.set("n", "<leader>e", "<cmd>ExOpen<cr>", { silent = true })
+---@param opts table?
+function M.setup(opts)
+    config = vim.tbl_deep_extend("force", config, opts)
+
+    vim.api.nvim_create_user_command("ExOpen", M.open, { nargs = "?" })
+end
 
 return M
