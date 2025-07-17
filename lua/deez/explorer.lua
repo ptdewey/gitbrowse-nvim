@@ -2,8 +2,8 @@ local M = {}
 
 local config = {
     colors = {
-        dir = vim.api.nvim_get_hl(0, { name = "Directory" }).fg, -- TODO: switch to passing fg and bg
-        file = vim.api.nvim_get_hl(0, { name = "Normal" }).fg,
+        dir = vim.api.nvim_get_hl(0, { name = "Directory" }),
+        file = vim.api.nvim_get_hl(0, { name = "Normal" }),
     },
 }
 
@@ -15,18 +15,7 @@ local state = {
     show_hidden = false,
 }
 
--- TODO: replace with mini.icons
-local icons = {
-    folder = "",
-    file = "",
-    lua = "",
-    md = "",
-    txt = "",
-    json = "",
-    toml = "",
-}
-
--- Get icon by file type
+-- Get icon by filetype
 ---@param name string
 ---@param is_dir boolean
 ---@return string
@@ -76,16 +65,9 @@ local function scan_dir(path)
 end
 
 -- Render file list into buffer
----@param opts table?
-local function render(opts)
-    if opts then
-        opts = vim.tbl_deep_extend("force", {}, opts)
-    else
-        opts = {}
-    end
-
-    local entries = scan_dir(opts.cwd or state.cwd)
-    local lines = { icons.folder .. " .." }
+local function render()
+    local entries = scan_dir(state.cwd)
+    local lines = { require("mini.icons").get("directory", "default") .. " .." }
 
     for _, entry in ipairs(entries) do
         if entry.name and entry.type then
@@ -101,8 +83,10 @@ local function render(opts)
     -- Apply highlights
     vim.api.nvim_buf_clear_namespace(state.bufnr, -1, 0, -1)
 
-    vim.api.nvim_set_hl(0, "FilesDir", { fg = config.colors.dir })
-    vim.api.nvim_set_hl(0, "FilesFile", { fg = config.colors.file })
+    ---@diagnostic disable-next-line: param-type-mismatch
+    vim.api.nvim_set_hl(0, "FilesDir", config.colors.dir)
+    ---@diagnostic disable-next-line: param-type-mismatch
+    vim.api.nvim_set_hl(0, "FilesFile", config.colors.file)
 
     for i, line in ipairs(lines) do
         local name = line:match("^.+%s(.+)$")
@@ -344,16 +328,58 @@ local function refresh()
     vim.notify("Refreshed directory listing", vim.log.levels.INFO)
 end
 
+-- Reset state when buffer is closed
+local function reset_state()
+    state.cwd = vim.loop.cwd()
+    state.bufnr = nil
+    state.winid = nil
+    state.ns_id = nil
+    state.show_hidden = false
+end
+
 -- Open the file explorer
 ---@param opts table?
 function M.open(opts)
-    -- TODO: pass in opts.args[1] as cwd to render func
+    if state.bufnr and vim.api.nvim_buf_is_valid(state.bufnr) then
+        -- If no args provided, do nothing (graceful exit)
+        if not opts or not opts.args or opts.args == "" then
+            return
+        end
+
+        -- If path provided, navigate to it
+        local target_path = opts.args
+        if vim.fn.isdirectory(target_path) == 1 then
+            state.cwd = vim.fn.fnamemodify(target_path, ":p:h")
+            render()
+        else
+            vim.notify(
+                "Invalid directory: " .. target_path,
+                vim.log.levels.ERROR
+            )
+        end
+        return
+    end
+
+    if opts and opts.args and opts.args ~= "" then
+        state.cwd = opts.args
+    end
 
     state.bufnr = vim.api.nvim_create_buf(false, true)
     state.ns_id = vim.api.nvim_create_namespace("files")
 
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = state.bufnr })
     vim.bo[state.bufnr].filetype = "files"
+
+    -- Set up buffer cleanup autocmd
+    vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
+        buffer = state.bufnr,
+        callback = reset_state,
+        once = true,
+    })
+
+    vim.api.nvim_buf_set_keymap(state.bufnr, "n", "<CR>", "", {
+        callback = on_enter,
+    })
 
     -- File/directory creation keymaps (netrw style)
     vim.api.nvim_buf_set_keymap(state.bufnr, "n", "%", "", {
@@ -420,6 +446,6 @@ function M.open(opts)
 end
 
 vim.api.nvim_create_user_command("ExOpen", M.open, { nargs = "?" })
-vim.keymap.set("n", "<C-m>", "<cmd>ExOpen<cr>", { silent = true })
+vim.keymap.set("n", "<leader>e", "<cmd>ExOpen<cr>", { silent = true })
 
 return M
