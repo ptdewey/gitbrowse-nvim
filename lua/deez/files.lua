@@ -1,5 +1,13 @@
 local M = {}
 
+-- TODO:
+-- - Fuzzy searching (delegate to fzf-lua/any picker?)
+--   - "/" search searches for files within current context (even if they are in dirs/hidden?)
+-- - Sorting results (with frecency being one of the options)
+--   - Possibly show active sort option somewhere?
+-- - Allow setting custom icon provider
+-- - Add other keymaps to keys table
+
 local config = {
     colors = {
         dir = vim.api.nvim_get_hl(0, { name = "Directory" }),
@@ -11,6 +19,9 @@ local config = {
         close = { key = nil, opts = { desc = "Close Explorer", noremap = true } },
     },
     open_in_current_dir = false,
+    style = {
+        show_goto_parent = true,
+    },
 }
 
 local state = {
@@ -73,7 +84,10 @@ end
 -- Render file list into buffer
 local function render()
     local entries = scan_dir(state.cwd)
-    local lines = { require("mini.icons").get("directory", "default") .. " .." }
+    local lines = {}
+    if config.style.show_goto_parent then
+        lines = { require("mini.icons").get("directory", "default") .. " .." }
+    end
 
     for _, entry in ipairs(entries) do
         if entry.name and entry.type then
@@ -333,8 +347,6 @@ local function reset_state()
     state.show_hidden = false
 end
 
--- FIX: this should open in the directory of the currently open file rather than the cwd (or make an opt)
---
 -- Open the file explorer
 ---@param opts table?
 function M.open(opts)
